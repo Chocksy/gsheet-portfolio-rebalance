@@ -89,6 +89,8 @@ function rebalancePortfolio() {
   });
 
   const trades = [];
+  const forcedOneShare = [];
+  const noPrice = [];
 
   // Sell tickers not in TradeList
   Object.keys(holdingsMap).forEach(ticker => {
@@ -102,12 +104,23 @@ function rebalancePortfolio() {
   tradeTickers.forEach(ticker => {
     const currentQty = holdingsMap[ticker] ? holdingsMap[ticker].qty : 0;
     const price = prices[ticker];
+    if (price == null || isNaN(price)) {
+      noPrice.push(ticker);
+      return;
+    }
     const desiredQty = Math.floor(targetValuePerTicker / price);
-    const diff = desiredQty - currentQty;
+    let finalDesiredQty = desiredQty;
+    if (finalDesiredQty === 0) {
+      finalDesiredQty = 1;
+      forcedOneShare.push(ticker);
+    }
+    const diff = finalDesiredQty - currentQty;
     if (diff > 0) trades.push({ action: 'BUY', ticker, quantity: diff, price });
     else if (diff < 0) trades.push({ action: 'SELL', ticker, quantity: -diff, price });
   });
   logDebug('Trades array', trades);
+  logDebug('Forced 1-share tickers', forcedOneShare);
+  logDebug('Tickers with no price', noPrice);
 
   if (!trades.length) {
     ui.alert('No trades required. Portfolio already balanced.');
@@ -116,10 +129,10 @@ function rebalancePortfolio() {
     return;
   }
 
-  // Build summary message (to show after execution)
-  let summaryMessage = 'Executed Trades:\n\n';
+  // Prepare summary list for executed trades (filled later)
+  let executedSection = '';
   trades.forEach(t => {
-    summaryMessage += `${t.action} ${t.quantity} ${t.ticker} @ $${t.price.toFixed(2)}\n`;
+    executedSection += `${t.action} ${t.quantity} ${t.ticker} @ $${t.price.toFixed(2)}\n`;
   });
   logDebug('Trades to execute', trades);
 
@@ -168,7 +181,15 @@ function rebalancePortfolio() {
   // Phase 5: Update Dashboard
   updateDashboard();
 
-  // Show summary dialog
+  // Assemble final summary message
+  let summaryMessage = 'Executed Trades:\n\n' + (executedSection || 'None') + '\n';
+  if (forcedOneShare.length) {
+    summaryMessage += '\nTickers defaulted to 1 share due to high price:\n' + forcedOneShare.join(', ') + '\n';
+  }
+  if (noPrice.length) {
+    summaryMessage += '\nTickers skipped due to missing price:\n' + noPrice.join(', ') + '\n';
+  }
+
   ui.alert('Rebalance Summary', summaryMessage, ui.ButtonSet.OK);
   logDebug('Rebalance complete');
   } catch (e) {
@@ -239,6 +260,10 @@ function updateDashboard() {
   dashboardSheet.getRange('K2').setFormula('=SUM(E2:E)');
   dashboardSheet.getRange('K3').setFormula('=K1-SUM(B2:B*C2:C)');
   dashboardSheet.getRange('K4').setFormula('=K2-SUM(B2:B*C2:C)');
+
+  // Allocation per Stock preview
+  dashboardSheet.getRange('J6').setValue('Allocation / Stock').setFontWeight('bold');
+  dashboardSheet.getRange('K6').setFormula('=K1/(COUNTA(TradeList!A:A)-1)').setNumberFormat('$#,##0.00');
 
   // Formatting
   const lastRow = holdingsData.length + 1; // including header
