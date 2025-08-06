@@ -253,17 +253,24 @@ function updateDashboard() {
     ['Target Allocation'],
     ['Portfolio Value'],
     ['Cash Position'],
+    ['Unrealized P&L'],
     ['Total P&L'],
+    ['Starting Capital'],
+    ['YTD P&L'],
+    ['YTD P&L %'],
+    ['Allocation / Stock'],
   ];
-  dashboardSheet.getRange('J1:J4').setValues(metricLabels).setFontWeight('bold');
+  dashboardSheet.getRange('J1:J9').setValues(metricLabels).setFontWeight('bold');
+
   dashboardSheet.getRange('K1').setFormula('=INDEX(AllocationHistory!B:B,COUNTA(AllocationHistory!B:B))');
   dashboardSheet.getRange('K2').setFormula('=SUM(E2:E)');
   dashboardSheet.getRange('K3').setFormula('=K1-SUM(B2:B*C2:C)');
   dashboardSheet.getRange('K4').setFormula('=K2-SUM(B2:B*C2:C)');
-
-  // Allocation per Stock preview
-  dashboardSheet.getRange('J6').setValue('Allocation / Stock').setFontWeight('bold');
-  dashboardSheet.getRange('K6').setFormula('=K1/(COUNTA(TradeList!A:A)-1)').setNumberFormat('$#,##0.00');
+  dashboardSheet.getRange('K5').setFormula('=K2-INDEX(AllocationHistory!B:B, MATCH(TRUE, ISNUMBER(AllocationHistory!B:B),0))');
+  dashboardSheet.getRange('K6').setFormula('=IFERROR(INDEX(FILTER(AllocationHistory!B:B, YEAR(AllocationHistory!A:A)=YEAR(TODAY())),1),0)');
+  dashboardSheet.getRange('K7').setFormula('=K2-K6');
+  dashboardSheet.getRange('K8').setFormula('=IF(K6=0,0,K7/K6)');
+  dashboardSheet.getRange('K9').setFormula('=K1/(COUNTA(TradeList!A:A)-1)');
 
   // Formatting
   const lastRow = holdingsData.length + 1; // including header
@@ -272,7 +279,9 @@ function updateDashboard() {
   dashboardSheet.getRange(2, 5, Math.max(holdingsData.length,1), 1).setNumberFormat('$#,##0.00'); // Market Value
   dashboardSheet.getRange(2, 7, Math.max(holdingsData.length,1), 1).setNumberFormat('$#,##0.00'); // P&L Open ($)
   dashboardSheet.getRange(2, 6, Math.max(holdingsData.length,1), 1).setNumberFormat('0.00%'); // P&L %
-  dashboardSheet.getRange('K1:K4').setNumberFormat('$#,##0.00');
+  dashboardSheet.getRange('K1:K7').setNumberFormat('$#,##0.00');
+  dashboardSheet.getRange('K9').setNumberFormat('$#,##0.00');
+  dashboardSheet.getRange('K8').setNumberFormat('0.00%');
 
   // Auto resize columns for better visibility
   dashboardSheet.autoResizeColumns(1, 7); // A:G
